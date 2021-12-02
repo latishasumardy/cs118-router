@@ -38,6 +38,14 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   std::cerr << getRoutingTable() << std::endl;
 
   // FILL THIS IN
+
+  ethernet_hdr* ethHdr = (ethernet_hdr*)packet.data();
+
+  if(ethHdr->ether_type != htons(ethertype_ip)) {
+    std::cerr << "packet type is not IPv4" << std::endl;
+    return;
+  }
+
 }
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
