@@ -38,13 +38,45 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   std::cerr << getRoutingTable() << std::endl;
 
   // FILL THIS IN
-
   ethernet_hdr* ethHdr = (ethernet_hdr*)packet.data();
+  //check destination
+  bool flag_match = true;
+  static const uint8_t BroadcastEtherAddr[ETHER_ADDR_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  const uint8_t my_addr = iface->addr.data();
+  const uint8_t dest_addr = ethHdr->ether_dhost;
 
+  for(int i = 0; i < 6; i++) {
+    if(dest_addr[i] != BroadcastEtherAddr[i] ) {
+      flag_match = false;
+      i = 6;
+    }
+  }
+
+  if (flag_match == false) {
+    flag_match = true;
+
+    for(int i = 0; i < 6; i++) {
+      if(dest_addr[i] != my_addr[i] ) {
+        flag_match = false;
+        i = 6;
+      }
+    }
+
+    if(flag_match == false) {
+      std::cerr << "packet not destined for this router " << std::endl;
+      return;
+    }
+
+  }
+  
+
+  //check type
   if(ethHdr->ether_type != htons(ethertype_ip)) {
     std::cerr << "packet type is not IPv4" << std::endl;
     return;
   }
+
+
 
 }
 //////////////////////////////////////////////////////////////////////////
