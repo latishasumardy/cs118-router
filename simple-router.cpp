@@ -14,6 +14,7 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
+
 #include "simple-router.hpp"
 #include "core/utils.hpp"
 
@@ -38,6 +39,9 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   std::cerr << getRoutingTable() << std::endl;
 
   // FILL THIS IN
+
+  /*check ethernet header */
+
   ethernet_hdr* ethHdr = (ethernet_hdr*)packet.data();
   //check destination
   bool flag_match = true;
@@ -76,6 +80,26 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
     return;
   }
 
+  /*check ip header*/
+  ip_hdr* ipHdr = (ip_hdr*)(packet.data() + sizeof(ethernet_hdr));
+
+  //min length check
+  if(ipHdr->ip_len < 20) {
+    std::cerr << "IP total length field is less than 20" << std::endl;
+    return;
+  } 
+
+  //ttl field??
+
+  //check checksum
+  uint16_t initial_checksum = ipHdr->ip_sum;
+  ipHdr->ip_sum = 0; 
+  uint16_t generated_sum = cksum(ipHdr, sizeof(ip_hdr));
+
+  if(initial_checksum != generated_sum){
+    std::cerr << "Checksums do not match" << std::endl;
+    return;
+  }
 
 
 }
