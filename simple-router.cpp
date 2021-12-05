@@ -101,6 +101,43 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
     return;
   }
 
+  /*check if packet is for one of our interfaces*/
+  const Interface* My_Interface = findIfaceByIp(ipHdr->ip_dst);
+  if(My_Interface != nullptr) { //for us
+    //check if icmp
+    if(ipHdr->ip_p == ip_protocol_icmp) {
+      icmp_hdr* icmpHdr = (icmp_hdr*)(packet.data() + sizeof(ethernet_hdr) + sizeof(ip_hdr));
+
+      //check if icmp checksum is correct
+      uint16_t initial_icmp_checksum = icmpHdr->icmp_sum;
+      icmpHdr->icmp_sum = 0;
+      uint16_t generated_icmp_sum = cksum(icmpHdr, packet.size() - sizeof(ethernet_hdr) - sizeof(ip_hdr));
+
+      if(initial_icmp_checksum != generated_icmp_sum) {
+        std::cerr << "ICMP checksums do not match" << std::endl;
+        return;
+      }
+
+      //check type of ICMP packet to make sure its an echo
+      if(icmpHdr->icmp_type != 8) {
+        std::cerr << "ICMP packet is not an echo" << std::endl;
+        return;
+      }
+
+      /*Send out packet*/
+      
+
+    }
+    else {
+      std::cerr << "packet is not ICMP" << std::endl;
+      return;
+    }
+
+  }
+  else { //forward bc packet is not for us
+
+  }
+
 
 }
 //////////////////////////////////////////////////////////////////////////
