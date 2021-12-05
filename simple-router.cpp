@@ -42,8 +42,8 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   //check destination
   bool flag_match = true;
   static const uint8_t BroadcastEtherAddr[ETHER_ADDR_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-  const uint8_t my_addr = iface->addr.data();
-  const uint8_t dest_addr = ethHdr->ether_dhost;
+  const uint8_t* my_addr = iface->addr.data();
+  const uint8_t* dest_addr = ethHdr->ether_dhost;
 
   for(int i = 0; i < 6; i++) {
     if(dest_addr[i] != BroadcastEtherAddr[i] ) {
