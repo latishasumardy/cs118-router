@@ -26,9 +26,12 @@ When POX controller is restrated, the simpler router needs to be manually stoppe
 This implementation is based on the original code for Stanford CS144 lab3 (https://bitbucket.org/cs144-1617/lab3).
 
 ## TODO
+Team member 1 name: Latisha Sumardy
+Team member 1 UID:  505543693
 
-    ###########################################################
-    ##                                                       ##
-    ## REPLACE CONTENT OF THIS FILE WITH YOUR PROJECT REPORT ##
-    ##                                                       ##
-    ###########################################################
+Team member 2 name: Stephanie Shin
+Team member 2 UID:  605551258
+
+Acknowledgements:
+1. TA Victor Rios's slide for project 2
+2. C++ documentation https://docs.microsoft.com/en-us/cpp/?view=msvc-170

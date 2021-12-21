@@ -41,7 +41,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   // FILL THIS IN
 
   /*check ethernet header */
-
+  //std::cerr << "check ethernet header" << std::endl;
   ethernet_hdr* ethHdr = (ethernet_hdr*)packet.data();
   //check destination
   bool flag_match = true;
@@ -49,7 +49,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   const uint8_t* my_addr = iface->addr.data();
   const uint8_t* dest_addr = ethHdr->ether_dhost;
 
-  for(int i = 0; i < 6; i++) {
+  for(int i = 0; i < 6; i++) { // check if broadcast message
     if(dest_addr[i] != BroadcastEtherAddr[i] ) {
       flag_match = false;
       i = 6;
@@ -59,7 +59,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   if (flag_match == false) {
     flag_match = true;
 
-    for(int i = 0; i < 6; i++) {
+    for(int i = 0; i < 6; i++) { // check if i am the destination
       if(dest_addr[i] != my_addr[i] ) {
         flag_match = false;
         i = 6;
@@ -75,15 +75,17 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   
 
   //check type
+  //(following victor's slides)
   if(ethHdr->ether_type != htons(ethertype_ip)) {
     std::cerr << "packet type is not IPv4" << std::endl;
     return;
   }
-
+  //std::cerr << "check ip header" << std::endl;
   /*check ip header*/
   ip_hdr* ipHdr = (ip_hdr*)(packet.data() + sizeof(ethernet_hdr));
 
   //min length check
+  //(following victor's slides)
   if(ipHdr->ip_len < 20) {
     std::cerr << "IP total length field is less than 20" << std::endl;
     return;
@@ -92,6 +94,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   //ttl field??
 
   //check checksum
+  //(following victor's slides)
   uint16_t initial_checksum = ipHdr->ip_sum;
   ipHdr->ip_sum = 0; 
   uint16_t generated_sum = cksum(ipHdr, sizeof(ip_hdr));
@@ -100,43 +103,116 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
     std::cerr << "Checksums do not match" << std::endl;
     return;
   }
-
+  //std::cerr << "check if for one of our interfaces" << std::endl;
   /*check if packet is for one of our interfaces*/
+  //(following victor's slides)
   const Interface* My_Interface = findIfaceByIp(ipHdr->ip_dst);
-  if(My_Interface != nullptr) { //for us
-    //check if icmp
-    if(ipHdr->ip_p == ip_protocol_icmp) {
+  if(My_Interface != nullptr) { //PACKET IS FOR US
+    //std::cerr << "check icmp header" << std::endl;
+    if(ipHdr->ip_p == ip_protocol_icmp) { // PACKET IS ICMP
       icmp_hdr* icmpHdr = (icmp_hdr*)(packet.data() + sizeof(ethernet_hdr) + sizeof(ip_hdr));
 
       //check if icmp checksum is correct
+      //(following victor's slides)
       uint16_t initial_icmp_checksum = icmpHdr->icmp_sum;
       icmpHdr->icmp_sum = 0;
       uint16_t generated_icmp_sum = cksum(icmpHdr, packet.size() - sizeof(ethernet_hdr) - sizeof(ip_hdr));
 
-      if(initial_icmp_checksum != generated_icmp_sum) {
+      if(initial_icmp_checksum != generated_icmp_sum) { 
         std::cerr << "ICMP checksums do not match" << std::endl;
         return;
       }
 
       //check type of ICMP packet to make sure its an echo
-      if(icmpHdr->icmp_type != 8) {
+      //(following victor's slides)
+      if(icmpHdr->icmp_type != 8) { // not type 8
         std::cerr << "ICMP packet is not an echo" << std::endl;
         return;
       }
+      //std::cerr << "send out packet" << std::endl;
+      /*Send out packet*/ 
+      //(following victor's slides)
+      Buffer OutgoingPacket(packet);
 
-      /*Send out packet*/
-      
+      //get new pointers for headers (structure taken from victor's slides)
+      ethernet_hdr* new_ethHdr = (ethernet_hdr*)OutgoingPacket.data();
+      ip_hdr* new_ipHdr = (ip_hdr*)(OutgoingPacket.data() + sizeof(ethernet_hdr));
+      icmp_hdr* new_icmpHdr = (icmp_hdr*)(OutgoingPacket.data() + sizeof(ethernet_hdr) + sizeof(ip_hdr));
 
-    }
-    else {
-      std::cerr << "packet is not ICMP" << std::endl;
+      /*reassign fields*/
+      //reassign ethernet header values
+      uint8_t original_dest_addr[6];
+      for(int i = 0; i < 6; i++) {
+        original_dest_addr[i] = new_ethHdr->ether_dhost[i];
+      }
+
+      for(int i = 0; i < 6; i++) {
+        new_ethHdr->ether_dhost[i] = new_ethHdr->ether_shost[i];
+        new_ethHdr->ether_shost[i] = original_dest_addr[i];
+      }
+
+      //reassign ip header values
+      uint32_t original_ip_dest_addr = new_ipHdr->ip_dst;
+
+      new_ipHdr->ip_dst = new_ipHdr->ip_src;
+      new_ipHdr->ip_src = original_ip_dest_addr;
+
+      new_ipHdr->ip_ttl = 64;
+      new_ipHdr->ip_sum = 0;
+      new_ipHdr->ip_sum = cksum(new_ipHdr, sizeof(ip_hdr));
+
+      //reassign icmp header values
+      new_icmpHdr->icmp_type = 0;
+      new_icmpHdr->icmp_code = 0;
+      new_icmpHdr->icmp_sum = 0;
+      new_icmpHdr->icmp_sum = cksum(new_icmpHdr, packet.size() - sizeof(ethernet_hdr) - sizeof(ip_hdr));
+
+      //std::cerr << "send out packet now" << std::endl;
+      sendPacket(OutgoingPacket, iface->name);
+      //std::cerr << "finished sending packet" << std::endl;
+
+    } // END PACKET IS ICMP
+    else { //not icmp
+      std::cerr << "Packet is for us but not ICMP" << std::endl;
+      return;
+    } 
+  } // END PACKET IS FOR US
+  else { // FORWARD, PACKET IS NOT FOR US 
+    //std::cerr << "forward packet" << std::endl;
+    // Check ttl field
+    ipHdr->ip_ttl -= 1;
+    if (ipHdr->ip_ttl <= 0) { 
+      std::cerr << "TTL is 0" << std::endl;
       return;
     }
-
-  }
-  else { //forward bc packet is not for us
-
-  }
+    // Check routing table to find next hop
+    ipHdr->ip_sum = cksum(ipHdr, sizeof(ip_hdr));
+    RoutingTableEntry nexthop;
+    try {
+      nexthop = m_routingTable.lookup(ipHdr->ip_dst);
+    } catch(const std::exception& err) {
+      std::cerr << "Could not find nexthop in routing table" << std::endl; 
+      return; 
+    }
+    // Look up IP in ARP cache
+    const Interface* OutgoingInterface = findIfaceByName(nexthop.ifName);
+    auto arpEntry = m_arp.lookup(nexthop.gw);
+    
+    // Rerequest or send
+    if (arpEntry) { // entry is found-- send the packet
+      // modify dest/source
+      for(int i = 0; i < 6; i++) {
+        ethHdr->ether_dhost[i] = arpEntry->mac.data()[i];
+        ethHdr->ether_shost[i] = OutgoingInterface->addr.data()[i];
+      }
+      ethHdr->ether_type = htons(ethertype_ip);
+      //send the packet
+      sendPacket(packet, nexthop.ifName);
+    } else { // entry is not found-- rerequest
+      m_arp.queueRequest(nexthop.gw, packet, nexthop.ifName);
+    }
+    return;
+  }  // END FORWARD PACKET SINCE IT'S NOT FOR US
 
 
 }
